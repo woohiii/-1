@@ -91,7 +91,7 @@ def open_wrist(name, label):
     if idx is None:
         print(f"ERROR: {label} ('{name}') not found - skipping this window")
         return None
-    cap = cv2.VideoCapture(idx)
+    cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
     if not cap.isOpened():
         print(f"ERROR: {label} ('{name}') at /dev/video{idx} could not be opened - skipping this window")
         return None
