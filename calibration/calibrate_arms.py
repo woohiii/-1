@@ -43,19 +43,19 @@ def self_test():
 
 def build_device(arm):
     """Build a connected-but-not-calibrated robot/teleoperator instance from an arms.json entry."""
-    from lerobot.robots.config import RobotConfig
     from lerobot.robots.utils import make_robot_from_config
-    from lerobot.teleoperators.config import TeleoperatorConfig
     from lerobot.teleoperators.utils import make_teleoperator_from_config
 
     arm_type = arm["type"]
     if arm_type == "so101_leader":
-        config_cls = TeleoperatorConfig.get_choice_class(arm_type)
-        config = config_cls(port=arm["port"], id=arm["id"])
+        from lerobot.teleoperators.so_leader.config_so_leader import SO101LeaderConfig
+
+        config = SO101LeaderConfig(port=arm["port"], id=arm["id"])
         return make_teleoperator_from_config(config)
     elif arm_type == "so101_follower":
-        config_cls = RobotConfig.get_choice_class(arm_type)
-        config = config_cls(port=arm["port"], id=arm["id"])
+        from lerobot.robots.so_follower.config_so_follower import SO101FollowerConfig
+
+        config = SO101FollowerConfig(port=arm["port"], id=arm["id"])
         return make_robot_from_config(config)
     else:
         raise ValueError(f"Unknown arm type: {arm_type}")
