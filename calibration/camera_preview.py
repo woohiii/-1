@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""3-window live camera preview: Astra S depth camera (IR mode) + 2 USB wrist cameras.
+"""3-window live camera preview: Astra S depth camera (depth mode) + 2 USB wrist cameras.
 
 IMPORTANT - run with the OTHER venv, NOT the lerobot uv venv:
     ~/lerobot_song_venv/bin/python calibration/camera_preview.py
@@ -12,15 +12,17 @@ raises an error) - only in ~/lerobot_song_venv. Do NOT run this via
 IMPORTANT - Astra S must be run as its OWN process, in a separate terminal,
 BEFORE this script (confirmed via py-spy: running OpenNI2 and OpenCV
 VideoCapture in the same process starves OpenNI2's USB events thread and
-hangs stream.read_frame() forever). Start it first:
+hangs native reads forever). Also confirmed this Astra S unit's OpenNI2
+streams can wedge on their own after anywhere from seconds to minutes even
+running standalone - use the watchdog, which auto-recovers via a USB reset,
+rather than the plain script:
 
-    ASTRA_IR_HUB_HEADLESS=1 ~/lerobot_song_venv/bin/python \\
-        /home/youngchan/lerobot/custom_scripts/vision_pick_place/astra_s_ir_hub.py
+    calibration/run_astra_depth_watchdog.sh
 
-That publishes IR frames to /tmp/vsp_astra_ir.png; this script just reads that
-file instead of opening the Astra S device itself. Only ONE process may hold
-the Astra S device open at a time - close any other running astra_s_*.py
-script before starting astra_s_ir_hub.py.
+That publishes the depth array to /tmp/vsp_astra_depth_mm.npy; this script
+just reads that file instead of opening the Astra S device itself. Only ONE
+process may hold the Astra S device open at a time - close any other running
+astra_s_*.py script before starting the watchdog.
 """
 
 import argparse
@@ -30,11 +32,17 @@ import sys
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 sys.path.insert(0, "/home/youngchan/lerobot/custom_scripts/vision_pick_place")
-from camera_utils import ASTRA_IR_FRAME_PATH, PublishedFrameSource, find_camera_index  # noqa: E402
+from camera_utils import ASTRA_DEPTH_MM_PATH, PublishedDepthSource, find_camera_index  # noqa: E402
 
 CAMERAS_JSON = Path(__file__).parent / "cameras.json"
+
+# Same close-range convention as astra_s_live.py (350-800mm covers the table
+# workspace on this rig without the far background washing out the range).
+DEPTH_MIN_MM = 350
+DEPTH_MAX_MM = 800
 
 
 def load_cameras():
@@ -63,13 +71,13 @@ def self_test():
 
     checks.append(("v4l2-ctl available", shutil.which("v4l2-ctl") is not None))
 
-    ir_source = PublishedFrameSource(ASTRA_IR_FRAME_PATH)
-    if ir_source.isOpened():
-        print(f"PASS: astra_s_ir_hub.py is publishing fresh IR frames to {ASTRA_IR_FRAME_PATH}")
+    depth_source = PublishedDepthSource(ASTRA_DEPTH_MM_PATH)
+    if depth_source.read() is not None:
+        print(f"PASS: astra_s_live.py is publishing fresh depth frames to {ASTRA_DEPTH_MM_PATH}")
     else:
         print(
-            f"INFO: no fresh IR frame at {ASTRA_IR_FRAME_PATH} yet - "
-            f"start astra_s_ir_hub.py first (see this script's docstring), not a failure by itself"
+            f"INFO: no fresh depth frame at {ASTRA_DEPTH_MM_PATH} yet - "
+            f"start run_astra_depth_watchdog.sh first (see this script's docstring), not a failure by itself"
         )
 
     ok = True
@@ -80,12 +88,22 @@ def self_test():
     return 0 if ok else 1
 
 
+def depth_to_display(depth_mm):
+    """Render raw mm depth as a color panel, same convention as astra_s_live.py."""
+    clipped = np.clip(depth_mm, DEPTH_MIN_MM, DEPTH_MAX_MM).astype(np.float32)
+    scaled = ((clipped - DEPTH_MIN_MM) * 255.0 / (DEPTH_MAX_MM - DEPTH_MIN_MM)).astype(np.uint8)
+    image = cv2.applyColorMap(scaled, cv2.COLORMAP_JET)
+    image[depth_mm == 0] = (0, 0, 0)
+    return image
+
+
 def open_wrist(name, label):
     idx = find_camera_index(name)
     if idx is None:
         print(f"ERROR: {label} ('{name}') not found - skipping this window")
         return None
-    cap = cv2.VideoCapture(idx)
+    cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     if not cap.isOpened():
         print(f"ERROR: {label} ('{name}') at /dev/video{idx} could not be opened - skipping this window")
         return None
@@ -94,15 +112,15 @@ def open_wrist(name, label):
 
 def run_preview(cameras):
     wrist1 = wrist2 = None
-    ir_source = PublishedFrameSource(ASTRA_IR_FRAME_PATH)
+    depth_source = PublishedDepthSource(ASTRA_DEPTH_MM_PATH)
     try:
         wrist1 = open_wrist(cameras["wrist_1_name"], "Wrist 1")
         wrist2 = open_wrist(cameras["wrist_2_name"], "Wrist 2")
 
         while True:
-            ok, img = ir_source.read()
-            if ok:
-                cv2.imshow("Astra S IR", img)
+            depth_mm = depth_source.read()
+            if depth_mm is not None:
+                cv2.imshow("Astra S Depth", depth_to_display(depth_mm))
 
             if wrist1 is not None:
                 ok, img = wrist1.read()
