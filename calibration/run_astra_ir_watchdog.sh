@@ -37,23 +37,32 @@ start() {
     echo "[watchdog] started astra_s_ir_hub.py pid=$PID"
 }
 
+# A plain process kill+restart wasn't enough to recover this device once it
+# wedges (confirmed live: the new process hung on its very first read_frame(),
+# never publishing a single frame) - a real USB-level reset was needed.
+reset_and_start() {
+    kill -9 "$PID" 2>/dev/null
+    wait "$PID" 2>/dev/null
+    usbreset 2bc5:0402 2>&1 | sed 's/^/[watchdog] usbreset: /'
+    sleep 1
+    start
+}
+
 start
 while true; do
     sleep "$CHECK_INTERVAL_S"
 
     if ! kill -0 "$PID" 2>/dev/null; then
-        echo "[watchdog] process died, restarting"
-        start
+        echo "[watchdog] process died, resetting device and restarting"
+        reset_and_start
         continue
     fi
 
     if [ -f "$FRAME" ]; then
         age=$(( $(date +%s) - $(stat -c %Y "$FRAME") ))
         if [ "$age" -gt "$STALE_S" ]; then
-            echo "[watchdog] frame stale (${age}s), restarting"
-            kill -9 "$PID" 2>/dev/null
-            wait "$PID" 2>/dev/null
-            start
+            echo "[watchdog] frame stale (${age}s), resetting device and restarting"
+            reset_and_start
         fi
     fi
 done
