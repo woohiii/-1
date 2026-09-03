@@ -73,7 +73,7 @@ def self_test():
 
     depth_source = PublishedDepthSource(ASTRA_DEPTH_MM_PATH)
     if depth_source.read() is not None:
-        print(f"PASS: astra_s_live.py is publishing fresh depth frames to {ASTRA_DEPTH_MM_PATH}")
+        print(f"PASS: astra_s_depth_hub.py is publishing fresh depth frames to {ASTRA_DEPTH_MM_PATH}")
     else:
         print(
             f"INFO: no fresh depth frame at {ASTRA_DEPTH_MM_PATH} yet - "

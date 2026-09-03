@@ -39,9 +39,10 @@ uv run --project /home/youngchan/lerobot python calibration/calibrate_arms.py --
 
 ## 카메라 프리뷰 (camera_preview.py)
 
-`calibration/camera_preview.py`는 카메라 3대를 동시에 창 3개로 띄워 보여줍니다:
-Astra S 깊이카메라(뎁스 모드, "Astra S Depth" 창)와 손목 카메라 2대("Wrist 1",
-"Wrist 2" 창). `q` 키를 누르면 종료됩니다.
+`calibration/camera_preview.py`는 카메라 3대를 동시에 별도 창 3개로 띄워
+보여줍니다: Astra S 깊이카메라(뎁스 모드, "Astra S Depth" 창)와 손목 카메라
+2대("Wrist 1", "Wrist 2" 창). `q` 키를 누르면 종료됩니다. (2026-09-03 확인:
+아래 워치독 절차대로 실행하면 3개 창 모두 실시간으로 갱신됨.)
 
 **주의: `calibrate_arms.py`와 다른 venv로 실행해야 합니다.** 이 스크립트는
 GUI가 가능한 OpenCV 빌드가 필요한데, `~/lerobot_song_venv`에만 있습니다.
@@ -53,7 +54,7 @@ GUI가 가능한 OpenCV 빌드가 필요한데, `~/lerobot_song_venv`에만 있�
 OpenNI2(Astra S)와 OpenCV VideoCapture(손목캠)를 같은 프로세스에서 같이 돌리면
 OpenNI2의 USB 이벤트 스레드가 우선순위를 못 받아서 프레임 읽기가 영원히 멈추는
 문제가 실측으로 확인됐습니다(py-spy로 확인). 그래서 이 스크립트는 Astra 장치를
-직접 열지 않고, `astra_s_live.py`가 `/tmp/vsp_astra_depth_mm.npy`에 발행한
+직접 열지 않고, `astra_s_depth_hub.py`가 `/tmp/vsp_astra_depth_mm.npy`에 발행한
 뎁스 배열을 읽기만 합니다.
 
 **추가로: 이 Astra S 유닛은 단독 프로세스로 돌려도 몇 초~몇 분 뒤에 스트림이
