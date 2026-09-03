@@ -44,7 +44,7 @@ reset_and_start() {
     kill -9 "$PID" 2>/dev/null
     wait "$PID" 2>/dev/null
     usbreset 2bc5:0402 2>&1 | sed 's/^/[watchdog] usbreset: /'
-    sleep 1
+    sleep 3
     start
 }
 
