@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-09-03T02:11:04.982035+00:00",
+  "results": [
+    {
+      "id": "leader_left",
+      "type": "so101_leader",
+      "is_calibrated": true
+    },
+    {
+      "id": "leader_right",
+      "type": "so101_leader",
+      "is_calibrated": true
+    },
+    {
+      "id": "follower_left",
+      "type": "so101_follower",
+      "is_calibrated": true
+    },
+    {
+      "id": "follower_right",
+      "type": "so101_follower",
+      "is_calibrated": true
+    }
+  ]
+}
