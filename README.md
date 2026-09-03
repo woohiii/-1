@@ -62,7 +62,7 @@ OpenNI2의 USB 이벤트 스레드가 우선순위를 못 받아서 프레임 �
 재현 확인 - 이 프로젝트 코드 문제가 아니라 이 장치/드라이버 자체의 고질적인
 불안정성. 새 USB 케이블로 교체하면 멈추는 간격이 늘어나지만 완전히 없어지진
 않습니다. `OrbbecSDK` v1 네이티브 드라이버로 교체도 시도해봤지만 IR 스트림
-기준 프레임을 아예 못 받아와서 더 나빴습니다). 그래서 `astra_s_live.py`를
+기준 프레임을 아예 못 받아와서 더 나빴습니다). 그래서 `astra_s_depth_hub.py`를
 직접 실행하는 대신, 발행 파일이 멈추면(8초 이상 갱신 없음) 자동으로
 `usbreset`하고 재시작해주는 워치독을 씁니다:
 
@@ -84,6 +84,14 @@ OpenNI2의 USB 이벤트 스레드가 우선순위를 못 받아서 프레임 �
 
 Astra S는 한 번에 한 프로세스만 열 수 있으므로, 워치독 실행 전에 다른
 `astra_s_*.py` 스크립트가 켜져 있지 않은지 먼저 확인하세요.
+
+**Depth가 기본/권장 모드입니다** (2026-09-03 실측: IR보다 안정적으로 오래
+버팀). IR 모드가 필요하면 `camera_preview_ir.py` + `run_astra_ir_watchdog.sh`
+쌍을 대신 쓰면 되는데, **Depth 워치독과 IR 워치독을 동시에 켜두면 둘 다
+장치를 붙잡으려고 충돌해서 계속 실패합니다** — 모드를 바꿀 땐 반드시 기존
+워치독을 완전히 종료(`pkill -9 -f run_astra_ir_watchdog.sh` /
+`pkill -9 -f run_astra_depth_watchdog.sh` + 관련 `astra_s_*.py`/
+`camera_preview*.py` 프로세스까지 확인)한 뒤에 다른 쪽을 켜세요.
 
 손목 카메라 이름(`calibration/cameras.json`의 `wrist_1_name`/`wrist_2_name`)은
 `v4l2-ctl --list-devices` 출력에서 매칭되는 USB 제품명 일부 문자열입니다.
