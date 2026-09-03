@@ -54,16 +54,25 @@ OpenNI2(Astra S)와 OpenCV VideoCapture(손목캠)를 같은 프로세스에서 
 OpenNI2의 USB 이벤트 스레드가 우선순위를 못 받아서 `read_frame()`이 영원히
 멈추는 문제가 실측으로 확인됐습니다(py-spy로 확인). 그래서 이 스크립트는 Astra
 장치를 직접 열지 않고, `astra_s_ir_hub.py`가 `/tmp/vsp_astra_ir.png`에 발행한
-프레임을 읽기만 합니다:
+프레임을 읽기만 합니다.
+
+**추가로: 이 Astra S 유닛은 단독 프로세스로 돌려도 수십 초~수 분 뒤에
+`read_frame()`이 다시 멈추는 문제가 있습니다** (py-spy로 `astra_s_ir_hub.py`
+단독 실행 상태에서도 재현 확인 - 이 프로젝트 코드 문제가 아니라 이 장치/드라이버
+자체의 고질적인 불안정성). 그래서 `astra_s_ir_hub.py`를 직접 실행하는 대신,
+발행 파일이 멈추면(8초 이상 갱신 없음) 자동으로 죽이고 재시작해주는 워치독을
+씁니다:
 
 ```bash
-# 터미널 1: Astra S를 단독으로 물고 IR 프레임을 계속 파일로 발행 (headless, 창 없음)
-ASTRA_IR_HUB_HEADLESS=1 ~/lerobot_song_venv/bin/python \
-    /home/youngchan/lerobot/custom_scripts/vision_pick_place/astra_s_ir_hub.py
+# 터미널 1: Astra S 워치독 (멈추면 자동 재시작, headless)
+./calibration/run_astra_ir_watchdog.sh
 
 # 터미널 2: 3-윈도우 프리뷰 (Astra IR은 위 프로세스가 발행한 파일을 읽음)
 ~/lerobot_song_venv/bin/python calibration/camera_preview.py
 ```
+
+워치독이 재시작하는 동안 "Astra S IR" 창은 몇 초간 멈췄다가 다시 갱신됩니다 -
+완전히 끊기지 않고 자동 복구되는 것이 정상 동작입니다.
 
 ```bash
 # 하드웨어 없이 cameras.json 검증 + 손목 카메라 인덱스 확인 + IR 발행 여부 확인
