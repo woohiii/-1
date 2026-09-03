@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs astra_s_live.py (headless) and restarts it whenever its published
+# Runs astra_s_depth_hub.py (headless) and restarts it whenever its published
 # depth array (/tmp/vsp_astra_depth_mm.npy) goes stale or the process dies.
 #
 # Why this exists: confirmed via py-spy that this Astra S unit's OpenNI2
@@ -18,12 +18,12 @@
 set -u
 
 FRAME=/tmp/vsp_astra_depth_mm.npy
-SCRIPT=/home/youngchan/lerobot/custom_scripts/vision_pick_place/astra_s_live.py
+SCRIPT="$(dirname "$(readlink -f "$0")")/astra_s_depth_hub.py"
 PYTHON=~/lerobot_song_venv/bin/python
 STALE_S=8
 CHECK_INTERVAL_S=3
 
-export ASTRA_LIVE_HEADLESS=1
+export ASTRA_DEPTH_HUB_HEADLESS=1
 
 cleanup() {
     echo "[watchdog] stopping"
@@ -35,7 +35,7 @@ trap cleanup INT TERM
 start() {
     "$PYTHON" "$SCRIPT" &
     PID=$!
-    echo "[watchdog] started astra_s_live.py pid=$PID"
+    echo "[watchdog] started astra_s_depth_hub.py pid=$PID"
 }
 
 # A plain process kill+restart wasn't enough to recover this device once it
