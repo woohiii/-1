@@ -44,21 +44,34 @@ Astra S 깊이카메라(적외선 모드, "Astra S IR" 창)와 손목 카메라 
 "Wrist 2" 창). `q` 키를 누르면 종료됩니다.
 
 **주의: `calibrate_arms.py`와 다른 venv로 실행해야 합니다.** 이 스크립트는
-Astra S용 OpenNI2 바인딩(`primesense` 패키지)과 GUI가 가능한 OpenCV 빌드가
-필요한데, 둘 다 `~/lerobot_song_venv`에만 있습니다. `/home/youngchan/lerobot`의
-uv venv는 headless opencv라서 `cv2.imshow`가 에러를 냅니다. 즉 `uv run
---project /home/youngchan/lerobot ...`로 실행하면 안 됩니다.
+GUI가 가능한 OpenCV 빌드가 필요한데, `~/lerobot_song_venv`에만 있습니다.
+`/home/youngchan/lerobot`의 uv venv는 headless opencv라서 `cv2.imshow`가
+에러를 냅니다. 즉 `uv run --project /home/youngchan/lerobot ...`로 실행하면
+안 됩니다.
+
+**주의: Astra S는 반드시 별도 터미널의 별도 프로세스로 먼저 실행해야 합니다.**
+OpenNI2(Astra S)와 OpenCV VideoCapture(손목캠)를 같은 프로세스에서 같이 돌리면
+OpenNI2의 USB 이벤트 스레드가 우선순위를 못 받아서 `read_frame()`이 영원히
+멈추는 문제가 실측으로 확인됐습니다(py-spy로 확인). 그래서 이 스크립트는 Astra
+장치를 직접 열지 않고, `astra_s_ir_hub.py`가 `/tmp/vsp_astra_ir.png`에 발행한
+프레임을 읽기만 합니다:
 
 ```bash
-# 하드웨어 없이 cameras.json 검증 + 손목 카메라 인덱스 확인만
-~/lerobot_song_venv/bin/python calibration/camera_preview.py --self-test
+# 터미널 1: Astra S를 단독으로 물고 IR 프레임을 계속 파일로 발행 (headless, 창 없음)
+ASTRA_IR_HUB_HEADLESS=1 ~/lerobot_song_venv/bin/python \
+    /home/youngchan/lerobot/custom_scripts/vision_pick_place/astra_s_ir_hub.py
 
-# 카메라 3대 실시간 프리뷰 (창 3개)
+# 터미널 2: 3-윈도우 프리뷰 (Astra IR은 위 프로세스가 발행한 파일을 읽음)
 ~/lerobot_song_venv/bin/python calibration/camera_preview.py
 ```
 
-Astra S는 한 번에 한 프로세스만 열 수 있으므로, 실행 전에 다른
-`astra_s_*.py` 스크립트가 켜져 있지 않은지 먼저 확인하세요.
+```bash
+# 하드웨어 없이 cameras.json 검증 + 손목 카메라 인덱스 확인 + IR 발행 여부 확인
+~/lerobot_song_venv/bin/python calibration/camera_preview.py --self-test
+```
+
+Astra S는 한 번에 한 프로세스만 열 수 있으므로, `astra_s_ir_hub.py` 실행 전에
+다른 `astra_s_*.py` 스크립트가 켜져 있지 않은지 먼저 확인하세요.
 
 손목 카메라 이름(`calibration/cameras.json`의 `wrist_1_name`/`wrist_2_name`)은
 `v4l2-ctl --list-devices` 출력에서 매칭되는 USB 제품명 일부 문자열입니다.

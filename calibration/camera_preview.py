@@ -4,14 +4,23 @@
 IMPORTANT - run with the OTHER venv, NOT the lerobot uv venv:
     ~/lerobot_song_venv/bin/python calibration/camera_preview.py
 
-This script needs the `primesense` package (OpenNI2 bindings for the Astra S)
-and a GUI-enabled OpenCV build (cv2.imshow). Neither is available in
-/home/youngchan/lerobot's uv-managed venv (that one has headless opencv, where
-cv2.imshow raises an error) - both exist only in ~/lerobot_song_venv. Do NOT
-run this via `uv run --project /home/youngchan/lerobot ...`.
+This script needs a GUI-enabled OpenCV build (cv2.imshow). That's not available
+in /home/youngchan/lerobot's uv-managed venv (headless opencv there, cv2.imshow
+raises an error) - only in ~/lerobot_song_venv. Do NOT run this via
+`uv run --project /home/youngchan/lerobot ...`.
 
-The Astra S can only be held open by one process at a time - close any other
-running astra_s_*.py script before running this one.
+IMPORTANT - Astra S must be run as its OWN process, in a separate terminal,
+BEFORE this script (confirmed via py-spy: running OpenNI2 and OpenCV
+VideoCapture in the same process starves OpenNI2's USB events thread and
+hangs stream.read_frame() forever). Start it first:
+
+    ASTRA_IR_HUB_HEADLESS=1 ~/lerobot_song_venv/bin/python \\
+        /home/youngchan/lerobot/custom_scripts/vision_pick_place/astra_s_ir_hub.py
+
+That publishes IR frames to /tmp/vsp_astra_ir.png; this script just reads that
+file instead of opening the Astra S device itself. Only ONE process may hold
+the Astra S device open at a time - close any other running astra_s_*.py
+script before starting astra_s_ir_hub.py.
 """
 
 import argparse
@@ -21,12 +30,9 @@ import sys
 from pathlib import Path
 
 import cv2
-import numpy as np
 
 sys.path.insert(0, "/home/youngchan/lerobot/custom_scripts/vision_pick_place")
-from camera_utils import find_camera_index  # noqa: E402
-from orbbec_color_camera import DEFAULT_OPENNI2_REDIST_DIR  # noqa: E402
-from primesense import openni2  # noqa: E402
+from camera_utils import ASTRA_IR_FRAME_PATH, PublishedFrameSource, find_camera_index  # noqa: E402
 
 CAMERAS_JSON = Path(__file__).parent / "cameras.json"
 
@@ -57,33 +63,21 @@ def self_test():
 
     checks.append(("v4l2-ctl available", shutil.which("v4l2-ctl") is not None))
 
+    ir_source = PublishedFrameSource(ASTRA_IR_FRAME_PATH)
+    if ir_source.isOpened():
+        print(f"PASS: astra_s_ir_hub.py is publishing fresh IR frames to {ASTRA_IR_FRAME_PATH}")
+    else:
+        print(
+            f"INFO: no fresh IR frame at {ASTRA_IR_FRAME_PATH} yet - "
+            f"start astra_s_ir_hub.py first (see this script's docstring), not a failure by itself"
+        )
+
     ok = True
     for name, passed in checks:
         print(f"{'PASS' if passed else 'FAIL'}: {name}")
         ok = ok and passed
 
     return 0 if ok else 1
-
-
-def ir_frame_to_display(raw):
-    """16-bit raw IR -> 8-bit displayable image via percentile contrast stretch."""
-    valid = raw[raw > 0]
-    if valid.size:
-        lo, hi = np.percentile(valid, (2, 98))
-        return np.clip((raw.astype(np.float32) - lo) * 255.0 / max(hi - lo, 1.0), 0, 255).astype(np.uint8)
-    return np.zeros(raw.shape, dtype=np.uint8)
-
-
-def open_astra_ir():
-    openni2.initialize(str(DEFAULT_OPENNI2_REDIST_DIR))
-    device = openni2.Device.open_any()
-    stream = device.create_ir_stream()
-    if stream is None:
-        raise RuntimeError("Astra S IR stream is unavailable on this device/driver")
-    stream.configure_mode(640, 480, 30, openni2.PIXEL_FORMAT_GRAY16)
-    stream.set_mirroring_enabled(False)
-    stream.start()
-    return device, stream
 
 
 def open_wrist(name, label):
@@ -99,16 +93,16 @@ def open_wrist(name, label):
 
 
 def run_preview(cameras):
-    device = stream = wrist1 = wrist2 = None
+    wrist1 = wrist2 = None
+    ir_source = PublishedFrameSource(ASTRA_IR_FRAME_PATH)
     try:
-        device, stream = open_astra_ir()
         wrist1 = open_wrist(cameras["wrist_1_name"], "Wrist 1")
         wrist2 = open_wrist(cameras["wrist_2_name"], "Wrist 2")
 
         while True:
-            frame = stream.read_frame()
-            raw = np.frombuffer(bytes(frame.get_buffer_as_uint16()), dtype=np.uint16).reshape(frame.height, frame.width)
-            cv2.imshow("Astra S IR", ir_frame_to_display(raw))
+            ok, img = ir_source.read()
+            if ok:
+                cv2.imshow("Astra S IR", img)
 
             if wrist1 is not None:
                 ok, img = wrist1.read()
@@ -122,10 +116,6 @@ def run_preview(cameras):
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
-        if stream is not None:
-            stream.stop()
-        if device is not None:
-            device.close()
         if wrist1 is not None:
             wrist1.release()
         if wrist2 is not None:
